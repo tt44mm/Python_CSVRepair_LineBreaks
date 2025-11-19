@@ -1,0 +1,10 @@
+DokumentUrl*;Verknüpfungsart*;Abonnements;Dokumentbeschreibung;Sprache*;Dokumenttyp*;Dokumentnummer;Ausgabedatum;AcCode*;ID;Hosted Datei ID;Löschen
+Document url*;Url type*;Subscriptions;Document description;Language*;Document type*;Document identifier;Publication date;AcCode*;ID;Hosted file ID;Delete
+URL du document*;Type de lien*;Abonnements;Descriptif des documents;Langue*;Type de document*;Indice du document;Date de publication;AcCode*;ID;ID du fichier hébergé;Supprimer
+1928700;Local;;Risikobeurteilung gemäß 2006/42/EG, 3. Auflage 2013 (2013-05-01);de;trule;Risikobeurteilung gemäß 2006/42/EG, 3. Auflage 2013;2013-05-01;CSMKBP00000007;0b4be961-3a0d-4b3b-813c-f43ddcfde6f8;;
+https://nautos.intranet.jungheinrich.com/Volltext/Downloads_Standard/2702370.PDF;Url;;dejhvg00;de;trule;DIN EN 16984;2017-09-00;DE30073725;a3f22435-cade-4304-806e-6eea0c48ec9e;;
+https://nautos.intranet.jungheinrich.com/Volltext/Sonstige_Normen/ANSI/ANSISAIA A92.22 - 2018_scannt.pdf;Url;;ANSI;en;;empty;20.07.2023 10:44:05;CS20000067;c444af3b-d301-4546-a478-9621ee9172f3;;
+https://nautos.intranet.jungheinrich.com/Volltext/Sonstige_Normen/ABNT_Brasilien/ABNT NBR 15524-2_2007.pdf;Url;;"ABNT_
+Brasilien";xx;trule;ABNT NBR 15524-2;2007-10-01;BR88136040;a0c6d17e-a811-4a0b-8a89-f5a3c8614530;;
+https://nautos.intranet.jungheinrich.com/Volltext/Sonstige_Normen/ANSI/ANSISAIA A92.24 - 2018_scannt.pdf;Url;;"ANSI 
+TEST UMBRUCH";en;;empty;20.07.2023 10:44:05;CS20000068;9f2d28d3-adf2-4d0e-a71e-b96557052901;;
