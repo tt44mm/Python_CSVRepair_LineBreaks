@@ -49,7 +49,9 @@ def get_column_mapping(header_row):
     
     # Finde Übereinstimmungen zwischen Header und erwarteten Spalten
     for header_col in header_row:
-        header_col_clean = header_col.strip()
+        # Entferne Whitespace und BOM (Byte Order Mark) falls vorhanden
+        header_col_clean = header_col.strip().lstrip('\ufeff')
+        
         for col_variations in EXPECTED_COLUMNS:
             if header_col_clean in col_variations:
                 standard_col = col_variations[0]
@@ -84,7 +86,8 @@ def process_csv(input_file, output_file=None):
     
     try:
         # Erkenne die Kodierung
-        encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'iso-8859-1', 'cp1252']
+        # utf-8-sig zuerst prüfen, um BOM korrekt zu behandeln
+        encodings = ['utf-8-sig', 'utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
         file_encoding = None
         
         for encoding in encodings:
@@ -150,6 +153,10 @@ def process_csv(input_file, output_file=None):
             # Erstelle neuen Header
             processed_rows.append(standard_columns)
             
+            # Variablen für AcCode-Ersetzung
+            nautos_code = None
+            ac_code_replacements = 0
+            
             # Verarbeite Datenzeilen
             for row_num, row in enumerate(rows[1:], start=2):
                 new_row = []
@@ -163,6 +170,32 @@ def process_csv(input_file, output_file=None):
                             standard_col = column_mapping[orig_col]
                             row_data[standard_col] = value
                 
+                # AcCode-Verarbeitung
+                if "AcCode*" in row_data:
+                    ac_code = row_data["AcCode*"]
+                    if ac_code and ac_code.startswith("CS"):
+                        if nautos_code is None:
+                            print(f"\n⚠️  AcCode mit 'CS' gefunden: {ac_code}")
+                            # Versuche Input zu bekommen, Fallback falls kein Terminal
+                            try:
+                                while True:
+                                    code_input = input("   Bitte geben Sie den 3-stelligen Nautos-Code ein: ").strip()
+                                    if len(code_input) == 3:
+                                        nautos_code = code_input
+                                        break
+                                    print("   ❌ Bitte genau 3 Zeichen eingeben.")
+                            except (EOFError, OSError):
+                                print("   ❌ Interaktive Eingabe nicht möglich. Überspringe Ersetzung.")
+                                nautos_code = False # Markiere als fehlgeschlagen/übersprungen
+
+                        if nautos_code:
+                            # Erstelle neuen Code: CS + 3-stellig + N + Rest ab 6. Zeichen
+                            new_prefix = f"CS{nautos_code}N"
+                            if len(ac_code) >= 6:
+                                new_ac_code = new_prefix + ac_code[6:]
+                                row_data["AcCode*"] = new_ac_code
+                                ac_code_replacements += 1
+
                 # Fülle neue Zeile in der richtigen Reihenfolge
                 for standard_col in standard_columns:
                     if standard_col in row_data:
@@ -211,6 +244,8 @@ def process_csv(input_file, output_file=None):
                 changes_made.append("Fehlende Spalten ergänzt")
             if id_had_content:
                 changes_made.append("ID-Inhalte gelöscht")
+            if ac_code_replacements > 0:
+                changes_made.append(f"AcCode angepasst ({ac_code_replacements}x)")
             
             if changes_made:
                 print(f"\n📝 Durchgeführte Änderungen:")
