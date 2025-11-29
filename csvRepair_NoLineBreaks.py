@@ -8,6 +8,7 @@ Ersetzt Zeilenumbrüche innerhalb von CSV-Feldern durch " <br> "
 import csv
 import sys
 import os
+import re
 
 def process_csv(input_file, output_file=None):
     """
@@ -87,6 +88,40 @@ def process_csv(input_file, output_file=None):
             
             print(f"Verarbeitet: {row_num} Zeilen")
             print(f"Ersetzte Zeilenumbrüche: {total_replacements}")
+        
+        # Zusätzlicher Schritt: Strichpunkte in quoted Feldern ersetzen und trailing <br> entfernen
+        semicolon_replacements = 0
+        br_removals = 0
+        rows_with_semicolons = []
+        
+        for row_num, row in enumerate(processed_rows, 1):
+            for col_num, field in enumerate(row):
+                original_field = field
+                
+                # Prüfe ob das Feld Strichpunkte enthält (diese würden in CSV gequotet werden)
+                if ';' in field:
+                    count = field.count(';')
+                    semicolon_replacements += count
+                    rows_with_semicolons.append((row_num, col_num + 1, field[:50] + "..." if len(field) > 50 else field))
+                    row[col_num] = field.replace(';', ':')
+                    field = row[col_num]
+                
+                # Entferne trailing <br> (mit optionalen Leerzeichen davor/danach)
+                while True:
+                    new_field = re.sub(r'\s*<br>\s*$', '', field)
+                    if new_field == field:
+                        break
+                    br_removals += 1
+                    field = new_field
+                row[col_num] = field
+        
+        if rows_with_semicolons:
+            print(f"\nZeilen mit Strichpunkten in Spalten (ersetzt durch Doppelpunkt):")
+            for row_n, col_n, preview in rows_with_semicolons:
+                print(f"  Zeile {row_n}, Spalte {col_n}: {preview}")
+        
+        print(f"\nErsetzte Strichpunkte in Spalten: {semicolon_replacements}")
+        print(f"Entfernte trailing <br>: {br_removals}")
         
         # Schreibe die verarbeitete CSV-Datei
         with open(output_file, 'w', encoding=file_encoding, newline='') as outfile:
