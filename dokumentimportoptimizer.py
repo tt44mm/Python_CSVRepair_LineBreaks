@@ -6,12 +6,17 @@ Prüft und optimiert CSV-Dateien für den Import:
 - Prüft ob alle erforderlichen Spalten vorhanden sind
 - Ergänzt fehlende Spalten "Abonnements" und "Hosted Datei ID" 
 - Entfernt Inhalte aus der Spalte "ID"
+- Splittet große Dateien (>950KB) in kleinere Chunks
 """
 
 import csv
 import sys
 import os
 from collections import OrderedDict
+
+# Konstanten
+MAX_FILE_SIZE_KB = 950
+ROWS_PER_CHUNK = 3800
 
 # Definiere die erwarteten Spalten in der richtigen Reihenfolge
 # Mit verschiedenen Sprachversionen
@@ -150,15 +155,56 @@ def process_csv(input_file, output_file=None):
             # Erstelle neue Zeilen mit korrekter Spaltenstruktur
             processed_rows = []
             
-            # Erstelle neuen Header
-            processed_rows.append(standard_columns)
+            # Prüfe ob es mehrere Header-Zeilen gibt (Zeile 2 und 3 sind Übersetzungen)
+            has_translated_headers = len(rows) >= 3
+            header_rows_count = 1
+            
+            if has_translated_headers:
+                # Prüfe ob Zeile 2 und 3 auch Header sind (keine URLs enthalten)
+                row2_looks_like_header = len(rows) > 1 and not any('http' in str(val).lower() for val in rows[1])
+                row3_looks_like_header = len(rows) > 2 and not any('http' in str(val).lower() for val in rows[2])
+                
+                if row2_looks_like_header and row3_looks_like_header:
+                    header_rows_count = 3
+                    print(f"\n📋 Erkannte Header-Zeilen: 3 (mit Übersetzungen)")
+            
+            # Erstelle Header-Zeilen
+            for header_idx in range(header_rows_count):
+                header_row = []
+                for col_idx, col_variations in enumerate(EXPECTED_COLUMNS):
+                    # Suche ob diese Spalte in der Original-Header existiert
+                    found = False
+                    for orig_col_idx, orig_header in enumerate(original_header):
+                        orig_header_clean = orig_header.strip().lstrip('\ufeff')
+                        if orig_header_clean in col_variations:
+                            # Spalte existiert - verwende den Wert aus der entsprechenden Zeile
+                            if header_idx < len(rows) and orig_col_idx < len(rows[header_idx]):
+                                header_row.append(rows[header_idx][orig_col_idx])
+                            else:
+                                # Fallback: verwende die entsprechende Sprachversion
+                                if header_idx < len(col_variations):
+                                    header_row.append(col_variations[header_idx])
+                                else:
+                                    header_row.append(col_variations[0])
+                            found = True
+                            break
+                    
+                    if not found:
+                        # Spalte fehlt - ergänze mit der entsprechenden Sprachversion
+                        if header_idx < len(col_variations):
+                            header_row.append(col_variations[header_idx])
+                        else:
+                            # Fallback auf erste Version wenn keine Übersetzung vorhanden
+                            header_row.append(col_variations[0])
+                
+                processed_rows.append(header_row)
             
             # Variablen für AcCode-Ersetzung
             nautos_code = None
             ac_code_replacements = 0
             
-            # Verarbeite Datenzeilen
-            for row_num, row in enumerate(rows[1:], start=2):
+            # Verarbeite Datenzeilen (überspringe Header-Zeilen)
+            for row_num, row in enumerate(rows[header_rows_count:], start=header_rows_count + 1):
                 new_row = []
                 
                 # Erstelle ein Dictionary der aktuellen Zeile
@@ -253,6 +299,54 @@ def process_csv(input_file, output_file=None):
                     print(f"   ✓ {change}")
             else:
                 print(f"\n📝 Keine Änderungen notwendig (Datei war bereits optimal)")
+            
+            # Prüfe Dateigröße und biete Splitting an
+            file_size_kb = os.path.getsize(output_file) / 1024
+            print(f"\n📊 Dateigröße: {file_size_kb:.1f} KB")
+            
+            if file_size_kb > MAX_FILE_SIZE_KB:
+                print(f"\n⚠️  Die Datei ist größer als {MAX_FILE_SIZE_KB} KB!")
+                
+                # Frage ob gesplittet werden soll
+                try:
+                    split_response = input(f"   Soll die Datei in Chunks à {ROWS_PER_CHUNK} Zeilen aufgeteilt werden? [J/n]: ").strip().lower()
+                    should_split = split_response in ['', 'j', 'ja', 'y', 'yes']
+                except (EOFError, OSError):
+                    print("   ❌ Interaktive Eingabe nicht möglich. Überspringe Splitting.")
+                    should_split = False
+                
+                if should_split:
+                    # Extrahiere Header-Zeilen (die ersten header_rows_count Zeilen)
+                    header_rows = processed_rows[:header_rows_count]
+                    data_rows = processed_rows[header_rows_count:]
+                    
+                    # Berechne Anzahl der Chunks
+                    total_data_rows = len(data_rows)
+                    num_chunks = (total_data_rows + ROWS_PER_CHUNK - 1) // ROWS_PER_CHUNK
+                    
+                    print(f"\n📦 Splitting in {num_chunks} Dateien...")
+                    
+                    base_name, extension = os.path.splitext(output_file)
+                    chunk_files = []
+                    
+                    for chunk_idx in range(num_chunks):
+                        start_row = chunk_idx * ROWS_PER_CHUNK
+                        end_row = min(start_row + ROWS_PER_CHUNK, total_data_rows)
+                        
+                        chunk_data = data_rows[start_row:end_row]
+                        chunk_rows = header_rows + chunk_data
+                        
+                        chunk_file = f"{base_name}_part{chunk_idx + 1}{extension}"
+                        chunk_files.append(chunk_file)
+                        
+                        with open(chunk_file, 'w', encoding=file_encoding, newline='') as outfile:
+                            csv_writer = csv.writer(outfile, delimiter=delimiter, quoting=csv.QUOTE_MINIMAL)
+                            csv_writer.writerows(chunk_rows)
+                        
+                        chunk_size_kb = os.path.getsize(chunk_file) / 1024
+                        print(f"   ✓ {chunk_file} ({len(chunk_data)} Datenzeilen, {chunk_size_kb:.1f} KB)")
+                    
+                    print(f"\n✅ {num_chunks} Chunk-Dateien erstellt (jeweils mit {header_rows_count}-zeiligem Header)")
             
             return True
             
